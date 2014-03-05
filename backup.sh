@@ -2,17 +2,25 @@
 
 # Backup script
 # Created by Cleber Paiva de Souza (cleber@lasca.ic.unicamp.br)
-# Last change: 2014-03-04-00-30
+# Last change: 2014-03-05-09-57
 
 # Global functions
 function msgOk()
 {
-    echo -e "[ \e[00;32mOK\e[00m ]"
+    if [ -t 1 ]; then
+        echo -e "[ \e[00;32mOK\e[00m ]"
+    else
+        echo -e "[ OK ]"
+    fi
 }
 
 function msgFailed()
 {
-    echo -e "[ \e[00;31mFAILED\e[00m ]"
+    if [ -t 1 ]; then
+        echo -e "[ \e[00;31mFAILED\e[00m ]"
+    else
+        echo -e "[ FAILED ]"
+    fi
 }
 
 # Set default settings
