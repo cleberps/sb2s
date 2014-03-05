@@ -23,7 +23,7 @@ ENABLED=false
 # Variables and definitions
 LOCAL_TMP_DIR="/tmp"
 MOUNT_NFS_FIRST=false
-BACKUP_DIR="/etc /root/scripts-adm /var/spool/cron"
+BACKUP_DIR="/etc /root /var/spool/cron"
 BACKUP_EXCLUDE=""
 
 # Backup Mysql data
