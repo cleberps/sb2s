@@ -114,7 +114,7 @@ function mountNFS()
     mount -t nfs $SERVER_HOSTNAME:$SERVER_DEST_BASE_DIR $LOCAL_BACKUP_DIR
     ret=$?
     if [ $ret -eq 0 ]; then
-        # Check if directory to host files exists
+        # Check if directory to host files exist
         if [ ! -d ${LOCAL_BACKUP_DIR}/${HOSTNAME} ]; then
             echo -n "NFS => Creating directory to host backup files... "
             mkdir ${LOCAL_BACKUP_DIR}/${HOSTNAME}
@@ -192,9 +192,9 @@ if ${MYSQL_BACKUP}; then
     fi
 
     echo -n "Backuping MySQL database... "
-    MYSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-mysqldump-${DATE_NOW}.sql"
+    MYSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-mysqldump-${DATE_NOW}.sql.gz"
     if [ ${MYSQL_DATABASE_LIST} = "all" ]; then
-        mysqldump -A -c -e --add-drop-table --compatible=ansi -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" >${MYSQL_DUMP_FILE}
+        mysqldump -A -c -e --add-drop-table --compatible=ansi -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | gzip -9 ${MYSQL_DUMP_FILE}
         ret=$?
         if [ $ret -eq 0 ]; then
             BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
