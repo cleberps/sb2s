@@ -194,7 +194,7 @@ if ${MYSQL_BACKUP}; then
     echo -n "Backuping MySQL database... "
     MYSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-mysqldump-${DATE_NOW}.sql.gz"
     if [ ${MYSQL_DATABASE_LIST} = "all" ]; then
-        mysqldump -A -c -e --add-drop-table --compatible=ansi -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | gzip -9 ${MYSQL_DUMP_FILE}
+        mysqldump -A -c -e --add-drop-table --compatible=ansi -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | gzip -9 >${MYSQL_DUMP_FILE}
         ret=$?
         if [ $ret -eq 0 ]; then
             BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
