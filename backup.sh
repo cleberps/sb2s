@@ -261,8 +261,16 @@ case ${BACKUP_PROTOCOL} in
 	copyToNFS
         ;;
     "local")
+        # Check if directory to host files exist
+        if [ ! -d ${LOCAL_BACKUP_DIR}/${HOSTNAME} ]; then
+            echo -n "LOCAL => Creating directory to host backup files... "
+            mkdir ${LOCAL_BACKUP_DIR}/${HOSTNAME}
+            ret=$?
+            [ $ret -eq 0 ] && msgOk || msgFailed
+        fi
+
         echo -n "LOCAL => Moving file to local directory... "
-        mv ${TEMP_FILE} ${LOCAL_BACKUP_DIR}
+        mv ${TEMP_FILE} ${LOCAL_BACKUP_DIR}/${HOSTNAME}
         ret=$?
         [ $ret -eq 0 ] && msgOk || msgFailed
         ;;
