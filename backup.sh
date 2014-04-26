@@ -2,7 +2,7 @@
 
 # Backup script
 # Created by Cleber Paiva de Souza (cleber@lasca.ic.unicamp.br)
-# Last change: 2014-03-05-09-57
+# Last change: 2014-04-26-16-29
 
 # Global functions
 function msgOk()
@@ -156,7 +156,7 @@ if [ -f "/etc/gentoo-release" ]; then
     else
         msgFailed
     fi
-elif [ -f "/etc/redhat-release" ]; then
+elif [ -f "/etc/redhat-release" ] || [ -f "/etc/SuSE-release" ]; then
     Q=$(which rpm)
     echo -n "Creating list of packages... "
     [ -x $Q ] && $Q -qa --qf "%{NAME} | %{VERSION}\n" | sort >${PACKAGE_LIST_DUMP}
