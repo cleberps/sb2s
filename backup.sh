@@ -110,7 +110,7 @@ fi
 # NFS mount function
 function mountNFS()
 {
-    mount -t nfs $SERVER_HOSTNAME:$SERVER_DEST_BASE_DIR $LOCAL_BACKUP_DIR
+    $(which mount) -t nfs $SERVER_HOSTNAME:$SERVER_DEST_BASE_DIR $LOCAL_BACKUP_DIR
     if [ $? -eq 0 ]; then
         # Check if directory to host files exist
         if [ ! -d ${LOCAL_BACKUP_DIR}/${HOSTNAME} ]; then
@@ -129,7 +129,7 @@ function copyToNFS()
 {
     # Copy backup file to NFS share
     echo -n "NFS => Copying file to NFS server... "
-    cp ${TEMP_FILE} $LOCAL_BACKUP_DIR/${HOSTNAME}/ > /dev/null 2>&1
+    $(which cp) ${TEMP_FILE} $LOCAL_BACKUP_DIR/${HOSTNAME}/ > /dev/null 2>&1
     [ $? -eq 0 ] && msgOk || msgFailed
 }
 
@@ -188,11 +188,11 @@ if ${MYSQL_BACKUP}; then
     MYSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-mysqldump-${DATE_NOW}.sql.gz"
     BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
     if [ ${MYSQL_DATABASE_LIST} = "all" ]; then
-        mysqldump -A -c -e --add-drop-table -u ${MYSQL_USER} \ 
-          -p"${MYSQL_PASSWORD}" | gzip -9 >${MYSQL_DUMP_FILE}
+        $(which mysqldump) -A -c -e --add-drop-table -u ${MYSQL_USER} \
+          -p"${MYSQL_PASSWORD}" | $(which gzip) -9 >${MYSQL_DUMP_FILE}
     else
-        mysqldump -c -e --add-drop-table --databases ${MYSQL_DATABASE_LIST} \
-          -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" >${MYSQL_DUMP_FILE}
+        $(which mysqldump) -c -e --add-drop-table --databases ${MYSQL_DATABASE_LIST} \
+          -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | $(which gzip) -9 >${MYSQL_DUMP_FILE}
     fi
     [ $? -eq 0 ] && msgOk || msgFailed
 fi
