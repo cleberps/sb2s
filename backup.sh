@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Backup script
+# Simple backup script
 # Created by Cleber Paiva de Souza (cleber@lasca.ic.unicamp.br)
 
 # Global functions
@@ -47,7 +47,7 @@ LDAP_PASSWORD="XXXXXXX"
 # Remote location
 BACKUP_PROTOCOL="nfs"
 SERVER_USER="root"
-SERVER_HOSTNAME="192.168.0.1"
+SERVER_HOSTNAME="nfs"
 SERVER_DEST_BASE_DIR="/home/backup"
 LOCAL_BACKUP_DIR="/backup"
 
@@ -56,7 +56,7 @@ SERVICES_RESTART=""
 
 # Check if script should continue
 if [ ! ${ENABLED} ]; then
-    echo "Script do not enabled."
+    echo "Script not enabled."
     exit 0
 fi
 
@@ -71,8 +71,7 @@ fi
 
 echo -n "Using configuration file ${BACKUP_CONF}... "
 . ${BACKUP_CONF}
-ret=$?
-[ $ret -eq 0 ] && msgOk || msgFailed
+[ $? -eq 0 ] && msgOk || msgFailed
 
 # Update BACKUP_DIR for only valid directories
 t=""
@@ -84,22 +83,23 @@ BACKUP_DIR=$t
 # Restart services before backup
 for service in $SERVICES_RESTART; do
     CMD=$(which service)
-    ret=$?
-    if [ ${ret} -eq 0 ]; then
+    if [ $? -eq 0 ]; then
         ${CMD} ${service} restart >/dev/null 2>&1
     else
         /etc/init.d/${service} restart >/dev/null 2>&1
     fi
 done
 
-# Global parameters (does not change)
+# Global parameters (do not change)
 : ${MYSQL_BACKUP:=false}
 : ${MYSQL_DATABASE_LIST:="all"}
 : ${LDAP_BACKUP:=false}
+: ${NAME_PREFIX:=""}
 DATE_NOW=$(date +%Y%m%d)
 HOSTNAME=$(hostname -s)
 PACKAGE_LIST="${HOSTNAME}-packages-${DATE_NOW}.txt"
-TEMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-backup-${DATE_NOW}.tar.gz"
+NAME_PREFIX="${NAME_PREFIX}-"
+TEMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-backup-${NAME_PREFIX}${DATE_NOW}.tar.gz"
 
 # Check directories
 if [ ! -d ${LOCAL_TMP_DIR} ]; then
@@ -111,14 +111,12 @@ fi
 function mountNFS()
 {
     mount -t nfs $SERVER_HOSTNAME:$SERVER_DEST_BASE_DIR $LOCAL_BACKUP_DIR
-    ret=$?
-    if [ $ret -eq 0 ]; then
+    if [ $? -eq 0 ]; then
         # Check if directory to host files exist
         if [ ! -d ${LOCAL_BACKUP_DIR}/${HOSTNAME} ]; then
             echo -n "NFS => Creating directory to host backup files... "
             mkdir ${LOCAL_BACKUP_DIR}/${HOSTNAME}
-            ret=$?
-            [ $ret -eq 0 ] && msgOk || msgFailed
+            [ $? -eq 0 ] && msgOk || msgFailed
         fi
     else
         echo "Error mouting NFS directory."
@@ -132,8 +130,7 @@ function copyToNFS()
     # Copy backup file to NFS share
     echo -n "NFS => Copying file to NFS server... "
     cp ${TEMP_FILE} $LOCAL_BACKUP_DIR/${HOSTNAME}/ > /dev/null 2>&1
-    ret=$?
-    [ $ret -eq 0 ] && msgOk || msgFailed
+    [ $? -eq 0 ] && msgOk || msgFailed
 }
 
 # Check if NFS mounting point should be mounted first
@@ -148,8 +145,7 @@ if [ -f "/etc/gentoo-release" ]; then
     Q=$(which qlist)
     echo -n "Creating list of packages... "
     [ -x $Q ] && $Q -IU >${PACKAGE_LIST_DUMP}
-    ret=$?
-    if [ $ret -eq 0 ]; then
+    if [ $? -eq 0 ]; then
         BACKUP_DIR="${BACKUP_DIR} ${PACKAGE_LIST_DUMP}"
         msgOk
     else
@@ -159,8 +155,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/SuSE-release" ]; then
     Q=$(which rpm)
     echo -n "Creating list of packages... "
     [ -x $Q ] && $Q -qa --qf "%{NAME} | %{VERSION}\n" | sort >${PACKAGE_LIST_DUMP}
-    ret=$?
-    if [ $ret -eq 0 ]; then
+    if [ $? -eq 0 ]; then
         BACKUP_DIR="${BACKUP_DIR} ${PACKAGE_LIST_DUMP}"
         msgOk
     else
@@ -170,8 +165,7 @@ elif [ -f "/etc/debian_version" ]; then
     Q=$(which dpkg)
     echo -n "Creating list of packages... "
     [ -x $Q ] && $Q -l >${PACKAGE_LIST_DUMP}
-    ret=$?
-    if [ $ret -eq 0 ]; then
+    if [ $? -eq 0 ]; then
         BACKUP_DIR="${BACKUP_DIR} ${PACKAGE_LIST_DUMP}"
         msgOk
     else
@@ -192,25 +186,15 @@ if ${MYSQL_BACKUP}; then
 
     echo -n "Backuping MySQL database... "
     MYSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-mysqldump-${DATE_NOW}.sql.gz"
+    BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
     if [ ${MYSQL_DATABASE_LIST} = "all" ]; then
-        mysqldump -A -c -e --add-drop-table -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | gzip -9 >${MYSQL_DUMP_FILE}
-        ret=$?
-        if [ $ret -eq 0 ]; then
-            BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
-            msgOk
-        else
-            msgFailed
-        fi
+        mysqldump -A -c -e --add-drop-table -u ${MYSQL_USER} \ 
+          -p"${MYSQL_PASSWORD}" | gzip -9 >${MYSQL_DUMP_FILE}
     else
-        mysqldump -c -e --add-drop-table --databases ${MYSQL_DATABASE_LIST} -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" >${MYSQL_DUMP_FILE}
-        ret=$?
-        if [ $ret -eq 0 ]; then
-            BACKUP_DIR="${BACKUP_DIR} ${MYSQL_DUMP_FILE}"
-            msgOk
-        else
-            msgFailed
-        fi
+        mysqldump -c -e --add-drop-table --databases ${MYSQL_DATABASE_LIST} \
+          -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" >${MYSQL_DUMP_FILE}
     fi
+    [ $? -eq 0 ] && msgOk || msgFailed
 fi
 
 # Backup LDAP
@@ -223,14 +207,9 @@ if ${LDAP_BACKUP}; then
 
     echo -n "Backuping LDAP database... "
     LDAP_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-ldap-${DATE_NOW}.ldif"
-    slapcat >${LDAP_DUMP_FILE} 2>/dev/null
-    ret=$?
-    if [ $ret -eq 0 ]; then
-        BACKUP_DIR="${BACKUP_DIR} ${LDAP_DUMP_FILE}"
-        msgOk
-    else
-        msgFailed
-    fi
+    BACKUP_DIR="${BACKUP_DIR} ${LDAP_DUMP_FILE}"
+    $(which slapcat) >${LDAP_DUMP_FILE} 2>/dev/null
+    [ $? -eq 0 ] && msgOk || msgFailed
 fi
 
 # Append exclude dir to tar command
@@ -243,17 +222,15 @@ fi
 
 # Create backup file
 echo -n "Creating tar.gz file... "
-tar -czpsf ${TEMP_FILE} ${DIRS_FOR_EXCLUSION} ${BACKUP_DIR} 2>/dev/null
-ret=$?
-[ $ret -eq 0 ] && msgOk || msgFailed
+tar -czpf ${TEMP_FILE} ${DIRS_FOR_EXCLUSION} ${BACKUP_DIR} 2>/dev/null
+[ $? -eq 0 ] && msgOk || msgFailed
 
 # Transfer file
 case ${BACKUP_PROTOCOL} in
     "ssh")
         echo -n "SSH => Moving file to backup server... "
-        scp ${TEMP_FILE} ${SERVER_USER}@${SERVER_HOSTNAME}:${SERVER_DEST_BASE_DIR}/${HOSTNAME} 2>&1 > /dev/null
-        ret=$?
-        [ $ret -eq 0 ] && msgOk || msgFailed
+        scp ${TEMP_FILE} ${SERVER_USER}@${SERVER_HOSTNAME}:${SERVER_DEST_BASE_DIR}/${HOSTNAME} >/dev/null 2>&1
+        [ $? -eq 0 ] && msgOk || msgFailed
         ;;
     "nfs")
     	[ ! ${MOUNT_NFS_FIRST} ] && mountNFS
@@ -264,21 +241,19 @@ case ${BACKUP_PROTOCOL} in
         if [ ! -d ${LOCAL_BACKUP_DIR}/${HOSTNAME} ]; then
             echo -n "LOCAL => Creating directory to host backup files... "
             mkdir ${LOCAL_BACKUP_DIR}/${HOSTNAME}
-            ret=$?
-            [ $ret -eq 0 ] && msgOk || msgFailed
+            [ $? -eq 0 ] && msgOk || msgFailed
         fi
 
         echo -n "LOCAL => Moving file to local directory... "
         mv ${TEMP_FILE} ${LOCAL_BACKUP_DIR}/${HOSTNAME}
-        ret=$?
-        [ $ret -eq 0 ] && msgOk || msgFailed
+        [ $? -eq 0 ] && msgOk || msgFailed
         ;;
     *)
         echo "Protocol not supported."
         exit 1
 esac
 
-# Clean the house
+# Cleaning the house
 echo -n "Cleaning temp files... "
 {
 [ -f ${TEMP_FILE} ] && rm -f ${TEMP_FILE}
@@ -290,8 +265,7 @@ if [ ${LDAP_BACKUP} ]; then
     [ -f ${LDAP_DUMP_FILE} ] && rm -f ${LDAP_DUMP_FILE}
 fi
 }
-ret=$?
-[ $ret -eq 0 ] && msgOk || msgFailed
+[ $? -eq 0 ] && msgOk || msgFailed
 
 # For NFS umounting should occur after cleaning temp files
 [ ${BACKUP_PROTOCOL} = "nfs" ] && umount $LOCAL_BACKUP_DIR
