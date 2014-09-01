@@ -98,7 +98,7 @@ done
 DATE_NOW=$(date +%Y%m%d)
 HOSTNAME=$(hostname -s)
 PACKAGE_LIST="${HOSTNAME}-packages-${DATE_NOW}.txt"
-NAME_PREFIX="${NAME_PREFIX}-"
+[ ${#NAME_PREFIX} -gt 0 ] && NAME_PREFIX="${NAME_PREFIX}-"
 TEMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-backup-${NAME_PREFIX}${DATE_NOW}.tar.gz"
 
 # Check directories
