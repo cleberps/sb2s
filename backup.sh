@@ -2,6 +2,7 @@
 
 # Simple backup script
 # Created by Cleber Paiva de Souza (cleber@lasca.ic.unicamp.br)
+# Tested on RHEL, CentOS, SUSE, OpenSUSE and Gentoo
 
 # Global functions
 function msgOk()
@@ -33,13 +34,18 @@ MOUNT_NFS_FIRST=false
 BACKUP_DIR="/etc /root /var/spool/cron"
 BACKUP_EXCLUDE=""
 
-# Backup Mysql data
+# Backup MySQL
 MYSQL_BACKUP=false
 MYSQL_USER="root"
 MYSQL_PASSWORD="root"
 MYSQL_DATABASE_LIST="all"
 
-# Backup Ldap
+# Backup PostgreSQL
+PGSQL_BACKUP=false
+PGSQL_USER="postgres"
+PGSQL_DATABASE_LIST="all"
+
+# Backup LDAP
 LDAP_BACKUP=false
 LDAP_USER="cn=Manager,dc=domain"
 LDAP_PASSWORD="XXXXXXX"
@@ -86,13 +92,20 @@ for service in $SERVICES_RESTART; do
     if [ $? -eq 0 ]; then
         ${CMD} ${service} restart >/dev/null 2>&1
     else
-        /etc/init.d/${service} restart >/dev/null 2>&1
+        CHECK_SYSTEMCTL=$(pidof systemd >/dev/null 2>&1)
+        if [ $? -eq 0 ]; then
+            $(which systemctl) restart ${service} >/dev/null 2>&1
+        else
+            /etc/init.d/${service} restart >/dev/null 2>&1
+        fi
     fi
 done
 
 # Global parameters (do not change)
 : ${MYSQL_BACKUP:=false}
 : ${MYSQL_DATABASE_LIST:="all"}
+: ${PGSQL_BACKUP:=false}
+: ${PGSQL_DATABASE_LIST:="all"}
 : ${LDAP_BACKUP:=false}
 : ${NAME_PREFIX:=""}
 DATE_NOW=$(date +%Y%m%d)
@@ -151,7 +164,9 @@ if [ -f "/etc/gentoo-release" ]; then
     else
         msgFailed
     fi
-elif [ -f "/etc/redhat-release" ] || [ -f "/etc/SuSE-release" ]; then
+elif [ -f "/etc/redhat-release" ] || 
+    [ -f "/etc/centos-release" ] ||
+    [ -f "/etc/SuSE-release" ] ; then
     Q=$(which rpm)
     echo -n "Creating list of packages... "
     [ -x $Q ] && $Q -qa --qf "%{NAME} | %{VERSION}\n" | sort >${PACKAGE_LIST_DUMP}
@@ -193,6 +208,30 @@ if ${MYSQL_BACKUP}; then
     else
         $(which mysqldump) -c -e --add-drop-table --databases ${MYSQL_DATABASE_LIST} \
           -u ${MYSQL_USER} -p"${MYSQL_PASSWORD}" | $(which gzip) -9 >${MYSQL_DUMP_FILE}
+    fi
+    [ $? -eq 0 ] && msgOk || msgFailed
+fi
+
+# Backup PostgreSQL databases
+if ${PGSQL_BACKUP}; then
+    COUNT=$(pgrep postgres | wc -l)
+    if [ ${COUNT} -eq 0 ]; then
+        echo "No PostgreSQL server running to issue backup commands."
+        exit 1
+    fi
+
+    echo -n "Backuping PostgreSQL database... "
+    PGSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-pgdump-${DATE_NOW}.sql.gz"
+    BACKUP_DIR="${BACKUP_DIR} ${PGSQL_DUMP_FILE}"
+    if [ ${PGSQL_DATABASE_LIST} = "all" ]; then
+        su - ${PGSQL_USER} -c "$(which pg_dumpall)" | $(which gzip) -9 >${PGSQL_DUMP_FILE}
+    else
+        PGSQL_DUMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-pgdump-${DATE_NOW}.sql"
+        echo "" >${PGSQL_DUMP_FILE}
+        for database in $(echo ${PGSQL_DATABASE_LIST}); do
+            su - ${PGSQL_USER} -c "$(which pg_dump) ${database}" >>${PGSQL_DUMP_FILE}
+        done
+        $(which gzip) -9 ${PGSQL_DUMP_FILE}
     fi
     [ $? -eq 0 ] && msgOk || msgFailed
 fi
