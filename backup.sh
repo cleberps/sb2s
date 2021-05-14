@@ -193,7 +193,7 @@ fi
 
 # Backup MySQL databases
 if ${MYSQL_BACKUP}; then
-    COUNT=$(pgrep mysql | wc -l)
+    COUNT=$(pgrep "(mysql|mariadbd)" | wc -l)
     if [ ${COUNT} -eq 0 ]; then
         echo "No MySQL server running to issue backup commands."
         exit 1
