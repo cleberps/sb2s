@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Simple backup script
-# Created by Cleber Paiva de Souza (cleber@lasca.ic.unicamp.br)
-# Tested on RHEL, CentOS, SUSE, OpenSUSE and Gentoo
+# Created by Cleber Paiva de Souza (cleber@ssys.com.br)
+# Tested on RHEL, CentOS, SUSE, OpenSUSE, Ubuntu and Gentoo
 
 # Global functions
 function msgOk()
@@ -56,6 +56,8 @@ SERVER_USER="root"
 SERVER_HOSTNAME="nfs"
 SERVER_DEST_BASE_DIR="/home/backup"
 LOCAL_BACKUP_DIR="/backup"
+SSH_SERVER_PORT=22
+SSH_REMOVE_FILE_AFTER_TRANSFER=true
 
 # Services to restart before backup
 SERVICES_RESTART=""
@@ -88,13 +90,13 @@ BACKUP_DIR=$t
 
 # Restart services before backup
 for service in $SERVICES_RESTART; do
-    CMD=$(which service)
+    CHECK_SYSTEMCTL=$(pidof systemd >/dev/null 2>&1)
     if [ $? -eq 0 ]; then
-        ${CMD} ${service} restart >/dev/null 2>&1
+        $(which systemctl) restart ${service} >/dev/null 2>&1
     else
-        CHECK_SYSTEMCTL=$(pidof systemd >/dev/null 2>&1)
+        CHECK_SERVICE=$(which service)
         if [ $? -eq 0 ]; then
-            $(which systemctl) restart ${service} >/dev/null 2>&1
+            ${CMD} ${service} restart >/dev/null 2>&1
         else
             /etc/init.d/${service} restart >/dev/null 2>&1
         fi
@@ -108,9 +110,9 @@ done
 : ${PGSQL_DATABASE_LIST:="all"}
 : ${LDAP_BACKUP:=false}
 : ${NAME_PREFIX:=""}
+: ${SSH_SERVER_PORT:=22}
 DATE_NOW=$(date +%Y%m%d)
 HOSTNAME=$(hostname -s)
-PACKAGE_LIST="${HOSTNAME}-packages-${DATE_NOW}.txt"
 [ ${#NAME_PREFIX} -gt 0 ] && NAME_PREFIX="${NAME_PREFIX}-"
 TEMP_FILE="${LOCAL_TMP_DIR}/${HOSTNAME}-backup-${NAME_PREFIX}${DATE_NOW}.tar.gz"
 
@@ -153,6 +155,7 @@ fi
 
 # Backup rotines
 # Generating package list
+PACKAGE_LIST="${HOSTNAME}-packages-${DATE_NOW}.txt"
 PACKAGE_LIST_DUMP="${LOCAL_TMP_DIR}/${PACKAGE_LIST}"
 if [ -f "/etc/gentoo-release" ]; then
     Q=$(which qlist)
@@ -189,6 +192,40 @@ elif [ -f "/etc/debian_version" ]; then
 else
     echo "Linux distribution not supported."
     exit 1
+fi
+
+# Backup pip info
+PIP_LIST="${HOSTNAME}-pip-${DATE_NOW}.txt"
+PIP_LIST_DUMP="${LOCAL_TMP_DIR}/${PIP_LIST}"
+PIP_CMD=$(which pip)
+if [ $? -eq 0 ]; then
+    echo -n "Creating list of pip packages... "
+    [ -x ${PIP_CMD} ] && ${PIP_CMD} list --format=columns >${PIP_LIST_DUMP} 2>&1
+    if [ $? -eq 0 ]; then
+        BACKUP_DIR="${BACKUP_DIR} ${PIP_LIST_DUMP}"
+        msgOk
+    else
+        msgFailed
+    fi
+fi
+
+# Backup docker info
+DOCKER_LIST="${HOSTNAME}-docker-${DATE_NOW}.txt"
+DOCKER_LIST_DUMP="${LOCAL_TMP_DIR}/${DOCKER_LIST}"
+DOCKER_CMD=$(which docker)
+if [ $? -eq 0 ]; then
+    echo -n "Getting info about docker... "
+    if [ -x ${DOCKER_CMD} ]; then
+        ${DOCKER_CMD} info   >${DOCKER_LIST_DUMP}  2>&1
+        ${DOCKER_CMD} images >>${DOCKER_LIST_DUMP} 2>&1
+        ${DOCKER_CMD} ps     >>${DOCKER_LIST_DUMP} 2>&1
+    fi
+    if [ $? -eq 0 ]; then
+        BACKUP_DIR="${BACKUP_DIR} ${DOCKER_LIST_DUMP}"
+        msgOk
+    else
+        msgFailed
+    fi
 fi
 
 # Backup MySQL databases
@@ -268,8 +305,13 @@ tar -czpf ${TEMP_FILE} ${DIRS_FOR_EXCLUSION} ${BACKUP_DIR} 2>/dev/null
 case ${BACKUP_PROTOCOL} in
     "ssh")
         echo -n "SSH => Moving file to backup server... "
-        scp ${TEMP_FILE} ${SERVER_USER}@${SERVER_HOSTNAME}:${SERVER_DEST_BASE_DIR}/${HOSTNAME} >/dev/null 2>&1
+        scp -o StrictHostKeyChecking=no \
+            -P ${SSH_SERVER_PORT} \
+            ${TEMP_FILE} \
+            ${SERVER_USER}@${SERVER_HOSTNAME}:${SERVER_DEST_BASE_DIR}/${HOSTNAME} \
+            >/dev/null 2>&1
         [ $? -eq 0 ] && msgOk || msgFailed
+        [ ${SSH_REMOVE_FILE_AFTER_TRANSFER} ] && rm -f ${TEMP_FILE}
         ;;
     "nfs")
     	[ ! ${MOUNT_NFS_FIRST} ] && mountNFS
