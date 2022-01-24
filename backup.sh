@@ -339,6 +339,8 @@ echo -n "Cleaning temp files... "
 {
 [ -f ${TEMP_FILE} ] && rm -f ${TEMP_FILE}
 [ -f ${PACKAGE_LIST_DUMP} ] && rm -f ${PACKAGE_LIST_DUMP}
+[ -f ${PIP_LIST_DUMP} ] && rm -f ${PIP_LIST_DUMP}
+[ -f ${DOCKER_LIST_DUMP} ] && rm -f ${DOCKER_LIST_DUMP}
 if [ ${MYSQL_BACKUP} ]; then
     [ -f ${MYSQL_DUMP_FILE} ] && rm -f ${MYSQL_DUMP_FILE}
 fi
